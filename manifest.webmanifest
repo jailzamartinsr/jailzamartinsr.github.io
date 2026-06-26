@@ -1,0 +1,16 @@
+{
+  "name": "Diário de Treino Upper Lower",
+  "short_name": "Treino",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f4f7fb",
+  "theme_color": "#111827",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
