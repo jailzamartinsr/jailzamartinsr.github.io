@@ -25,10 +25,10 @@
 
       <main>
         <section class="workout-picker" aria-label="Selecionar treino">
-        <button class="chip is-active" data-workout="upperA" type="button">Superior A</button>
-<button class="chip" data-workout="lowerA" type="button">Inferior A</button>
-<button class="chip" data-workout="upperB" type="button">Superior B</button>
-<button class="chip" data-workout="lowerB" type="button">Inferior B</button>
+          <button class="chip is-active" data-workout="upperA" type="button">Superior A</button>
+          <button class="chip" data-workout="lowerA" type="button">Inferior A</button>
+          <button class="chip" data-workout="upperB" type="button">Superior B</button>
+          <button class="chip" data-workout="lowerB" type="button">Inferior B</button>
         </section>
 
         <section class="session-panel">
@@ -83,6 +83,33 @@
             <span class="metric-label">Último treino</span>
             <strong id="lastMetric">-</strong>
           </div>
+        </section>
+
+        <section class="charts-panel" aria-label="Graficos dos treinos">
+          <div class="section-heading">
+            <h2>Graficos</h2>
+          </div>
+
+          <article class="chart-card">
+            <div class="chart-title">
+              <strong>Volume por treino</strong>
+              <span>Ultimas sessoes salvas</span>
+            </div>
+            <div id="volumeChart" class="bar-chart"></div>
+          </article>
+
+          <article class="chart-card">
+            <div class="chart-title">
+              <strong>Evolucao por exercicio</strong>
+              <span>Maior carga nas series de trabalho</span>
+            </div>
+            <label class="chart-select-label">
+              Exercicio
+              <select id="exerciseChartSelect"></select>
+            </label>
+            <div id="exerciseChartSummary" class="chart-summary"></div>
+            <div id="exerciseChart" class="line-chart"></div>
+          </article>
         </section>
 
         <section class="history">

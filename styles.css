@@ -349,6 +349,135 @@ textarea:focus {
   font-size: 1rem;
 }
 
+.charts-panel {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.chart-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--shadow);
+  padding: 12px;
+}
+
+.chart-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.chart-title strong {
+  font-size: 0.98rem;
+}
+
+.chart-title span,
+.chart-summary,
+.bar-label,
+.bar-value,
+.point-caption {
+  color: var(--muted);
+  fill: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.3;
+}
+
+.chart-select-label {
+  margin-bottom: 10px;
+}
+
+.bar-chart {
+  min-height: 170px;
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 8px;
+  align-items: end;
+  padding-top: 8px;
+}
+
+.bar-item {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  align-items: end;
+  text-align: center;
+}
+
+.bar-track {
+  height: 116px;
+  display: flex;
+  align-items: flex-end;
+  border-radius: 8px;
+  background: var(--soft);
+  overflow: hidden;
+}
+
+.bar-fill {
+  width: 100%;
+  min-height: 4px;
+  height: var(--bar-height);
+  border-radius: 8px 8px 0 0;
+  background: linear-gradient(180deg, #14b8a6 0%, #0f766e 100%);
+}
+
+.bar-label,
+.bar-value {
+  overflow-wrap: anywhere;
+}
+
+.bar-value {
+  min-height: 28px;
+  color: var(--ink);
+  font-weight: 850;
+}
+
+.chart-summary {
+  min-height: 22px;
+  margin-bottom: 8px;
+  font-weight: 800;
+}
+
+.line-chart {
+  min-height: 188px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.line-chart svg {
+  display: block;
+  width: max(100%, 420px);
+  height: 188px;
+}
+
+.line-grid {
+  stroke: #e7ecf3;
+  stroke-width: 1;
+}
+
+.line-path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.line-area {
+  fill: rgba(20, 184, 166, 0.13);
+}
+
+.line-point {
+  fill: #ffffff;
+  stroke: var(--accent-strong);
+  stroke-width: 3;
+}
+
 .history {
   margin-top: 14px;
   padding: 12px;
@@ -424,6 +553,14 @@ textarea:focus {
   .actions,
   .summary-panel {
     grid-template-columns: 1fr;
+  }
+
+  .bar-chart {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .chart-title {
+    display: grid;
   }
 
   .set-grid {

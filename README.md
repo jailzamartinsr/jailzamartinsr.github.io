@@ -10,9 +10,16 @@ Para usar como app no iPhone, publique a pasta em um host HTTPS simples, como Gi
 
 ## Treinos incluídos
 
-- Upper A
-- Lower A
-- Upper B
-- Lower B
+- Superior A
+- Inferior A
+- Superior B
+- Inferior B
 
-Cada exercício segue a estrutura `1x12 leve + 1x6 intermediária + 3x8-10 trabalho`.
+Cada exercício segue a estrutura `1x12 leve + 1x6 intermediária + 2x8-10 trabalho`.
+
+## Gráficos
+
+O app usa o histórico salvo no navegador para mostrar:
+
+- volume das últimas sessões;
+- evolução da maior carga por exercício nas séries de trabalho.

@@ -1,6 +1,6 @@
 const WORKOUTS = {
   upperA: {
-    name: "Supeior A",
+    name: "Superior A",
     exercises: [
       "Puxada frente",
       "Supino máquina",
@@ -73,6 +73,10 @@ const els = {
   clearCurrent: document.querySelector("#clearCurrent"),
   historyList: document.querySelector("#historyList"),
   exportCsv: document.querySelector("#exportCsv"),
+  volumeChart: document.querySelector("#volumeChart"),
+  exerciseChartSelect: document.querySelector("#exerciseChartSelect"),
+  exerciseChartSummary: document.querySelector("#exerciseChartSummary"),
+  exerciseChart: document.querySelector("#exerciseChart"),
   volumeMetric: document.querySelector("#volumeMetric"),
   setsMetric: document.querySelector("#setsMetric"),
   lastMetric: document.querySelector("#lastMetric"),
@@ -89,6 +93,7 @@ function init() {
   loadDraft();
   renderWorkout();
   renderHistory();
+  renderCharts();
   updateSummary();
   registerServiceWorker();
 }
@@ -126,6 +131,7 @@ function bindEvents() {
   els.saveSession.addEventListener("click", saveSession);
   els.clearCurrent.addEventListener("click", clearCurrentScreen);
   els.exportCsv.addEventListener("click", exportCsv);
+  els.exerciseChartSelect.addEventListener("change", renderExerciseChart);
 
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
@@ -229,6 +235,7 @@ function saveSession() {
   persistRecords();
   localStorage.removeItem(DRAFT_KEY);
   renderHistory();
+  renderCharts();
   updateSummary();
   alert("Treino salvo.");
 }
@@ -287,8 +294,179 @@ function deleteRecord(id) {
   state.records = state.records.filter((record) => record.id !== id);
   persistRecords();
   renderHistory();
+  renderCharts();
   renderWorkout();
   updateSummary();
+}
+
+function renderCharts() {
+  renderExerciseOptions();
+  renderVolumeChart();
+  renderExerciseChart();
+}
+
+function renderExerciseOptions() {
+  const selected = els.exerciseChartSelect.value;
+  const names = new Set();
+
+  Object.values(WORKOUTS).forEach((workout) => {
+    workout.exercises.forEach((exercise) => names.add(exercise));
+  });
+
+  state.records.forEach((record) => {
+    record.exercises.forEach((exercise) => names.add(exercise.name));
+  });
+
+  els.exerciseChartSelect.innerHTML = "";
+  [...names].sort((a, b) => a.localeCompare(b, "pt-BR")).forEach((name) => {
+    const option = document.createElement("option");
+    option.value = name;
+    option.textContent = name;
+    els.exerciseChartSelect.appendChild(option);
+  });
+
+  if ([...names].includes(selected)) {
+    els.exerciseChartSelect.value = selected;
+  } else {
+    els.exerciseChartSelect.value = WORKOUTS[state.workoutKey].exercises[0];
+  }
+}
+
+function renderVolumeChart() {
+  clearElement(els.volumeChart);
+
+  if (!state.records.length) {
+    appendEmpty(els.volumeChart, "Salve alguns treinos para ver o volume aqui.");
+    return;
+  }
+
+  const sessions = [...state.records]
+    .sort((a, b) => a.date.localeCompare(b.date) || (a.savedAt || "").localeCompare(b.savedAt || ""))
+    .slice(-8)
+    .map((record) => ({
+      label: formatShortDate(record.date),
+      workout: record.workoutName,
+      volume: calculateRecordVolume(record),
+    }));
+  const maxVolume = Math.max(...sessions.map((session) => session.volume), 1);
+
+  sessions.forEach((session) => {
+    const item = document.createElement("div");
+    item.className = "bar-item";
+
+    const value = document.createElement("span");
+    value.className = "bar-value";
+    value.textContent = `${formatNumber(session.volume)} kg`;
+
+    const track = document.createElement("div");
+    track.className = "bar-track";
+
+    const fill = document.createElement("div");
+    fill.className = "bar-fill";
+    fill.style.setProperty("--bar-height", `${Math.max(4, (session.volume / maxVolume) * 100)}%`);
+    track.appendChild(fill);
+
+    const label = document.createElement("span");
+    label.className = "bar-label";
+    label.textContent = `${session.label} ${session.workout.replace(" ", "")}`;
+
+    item.append(value, track, label);
+    els.volumeChart.appendChild(item);
+  });
+}
+
+function renderExerciseChart() {
+  clearElement(els.exerciseChart);
+  els.exerciseChartSummary.textContent = "";
+
+  const exerciseName = els.exerciseChartSelect.value;
+  const points = getExerciseProgress(exerciseName);
+
+  if (points.length < 2) {
+    appendEmpty(els.exerciseChart, "Esse exercicio precisa de pelo menos 2 registros para formar um grafico.");
+    if (points.length === 1) {
+      els.exerciseChartSummary.textContent = `Registro atual: ${formatNumber(points[0].weight)} kg.`;
+    }
+    return;
+  }
+
+  const best = Math.max(...points.map((point) => point.weight));
+  const last = points[points.length - 1];
+  const first = points[0];
+  const delta = last.weight - first.weight;
+  els.exerciseChartSummary.textContent =
+    `Melhor carga: ${formatNumber(best)} kg. Evolucao no periodo: ${formatSignedNumber(delta)} kg.`;
+
+  const width = Math.max(420, points.length * 86);
+  const height = 188;
+  const padding = { top: 18, right: 18, bottom: 42, left: 42 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const minWeight = Math.min(...points.map((point) => point.weight), 0);
+  const maxWeight = Math.max(...points.map((point) => point.weight), 1);
+  const spread = Math.max(maxWeight - minWeight, 1);
+
+  const coords = points.map((point, index) => {
+    const x = padding.left + (points.length === 1 ? chartWidth / 2 : (index / (points.length - 1)) * chartWidth);
+    const y = padding.top + chartHeight - ((point.weight - minWeight) / spread) * chartHeight;
+    return { ...point, x, y };
+  });
+
+  const path = coords.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+  const baseY = padding.top + chartHeight;
+  const areaPath = `${path} L ${coords[coords.length - 1].x} ${baseY} L ${coords[0].x} ${baseY} Z`;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", `Grafico de evolucao de ${exerciseName}`);
+
+  [0, 0.5, 1].forEach((ratio) => {
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    const y = padding.top + chartHeight * ratio;
+    line.setAttribute("x1", padding.left);
+    line.setAttribute("x2", width - padding.right);
+    line.setAttribute("y1", y);
+    line.setAttribute("y2", y);
+    line.setAttribute("class", "line-grid");
+    svg.appendChild(line);
+  });
+
+  const area = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  area.setAttribute("d", areaPath);
+  area.setAttribute("class", "line-area");
+  svg.appendChild(area);
+
+  const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  line.setAttribute("d", path);
+  line.setAttribute("class", "line-path");
+  svg.appendChild(line);
+
+  coords.forEach((point) => {
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("cx", point.x);
+    circle.setAttribute("cy", point.y);
+    circle.setAttribute("r", "5");
+    circle.setAttribute("class", "line-point");
+    svg.appendChild(circle);
+
+    const value = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    value.setAttribute("x", point.x);
+    value.setAttribute("y", Math.max(13, point.y - 10));
+    value.setAttribute("text-anchor", "middle");
+    value.setAttribute("class", "point-caption");
+    value.textContent = `${formatNumber(point.weight)}kg`;
+    svg.appendChild(value);
+
+    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    label.setAttribute("x", point.x);
+    label.setAttribute("y", height - 16);
+    label.setAttribute("text-anchor", "middle");
+    label.setAttribute("class", "point-caption");
+    label.textContent = formatShortDate(point.date);
+    svg.appendChild(label);
+  });
+
+  els.exerciseChart.appendChild(svg);
 }
 
 function exportCsv() {
@@ -421,6 +599,38 @@ function calculateRecordVolume(record) {
   }, 0);
 }
 
+function getExerciseProgress(exerciseName) {
+  return [...state.records]
+    .sort((a, b) => a.date.localeCompare(b.date) || (a.savedAt || "").localeCompare(b.savedAt || ""))
+    .map((record) => {
+      const exercise = record.exercises.find((item) => item.name === exerciseName);
+      if (!exercise) return null;
+
+      const workWeights = exercise.sets
+        .filter((set) => set.key.startsWith("work") && set.weight > 0)
+        .map((set) => set.weight);
+      if (!workWeights.length) return null;
+
+      return {
+        date: record.date,
+        workoutName: record.workoutName,
+        weight: Math.max(...workWeights),
+      };
+    })
+    .filter(Boolean);
+}
+
+function clearElement(element) {
+  element.replaceChildren();
+}
+
+function appendEmpty(element, message) {
+  const empty = document.createElement("p");
+  empty.className = "empty-state";
+  empty.textContent = message;
+  element.appendChild(empty);
+}
+
 function loadRecords() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
@@ -447,6 +657,17 @@ function formatDate(dateString) {
   if (!dateString) return "-";
   const [year, month, day] = dateString.split("-");
   return `${day}/${month}/${year}`;
+}
+
+function formatShortDate(dateString) {
+  if (!dateString) return "-";
+  const [, month, day] = dateString.split("-");
+  return `${day}/${month}`;
+}
+
+function formatSignedNumber(value) {
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${formatNumber(value)}`;
 }
 
 function today() {
