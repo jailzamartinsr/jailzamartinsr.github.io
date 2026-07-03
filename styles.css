@@ -253,6 +253,10 @@ textarea:focus {
   display: none;
 }
 
+.exercise-card.is-collapsed .exercise-header {
+  border-radius: 8px;
+}
+
 .exercise-card.is-collapsed .chevron {
   transform: rotate(-90deg);
 }
