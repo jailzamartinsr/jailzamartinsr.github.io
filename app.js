@@ -273,12 +273,12 @@ function exportDailyReport() {
   }
 
   const reportTitle = (els.reportName.value.trim() || `Relatório do treino - ${formatDate(reportDate)}`);
-  const html = buildDailyReportWorkbook(reportTitle, reportDate, sessions);
-  const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+  const workbook = buildDailyReportWorkbookData(reportTitle, reportDate, sessions);
+  const blob = createXlsxBlob(workbook);
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `${sanitizeFilename(reportTitle)}.xls`;
+  link.download = `${sanitizeFilename(reportTitle)}.xlsx`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -748,6 +748,295 @@ function buildDailyReportWorkbook(reportTitle, reportDate, sessions) {
 </html>`;
 }
 
+function buildDailyReportWorkbookData(reportTitle, reportDate, sessions) {
+  const totalVolume = sessions.reduce((sum, session) => sum + calculateRecordVolume(session), 0);
+  const totalSets = sessions.reduce((sum, session) => {
+    return sum + session.exercises.flatMap((exercise) => exercise.sets).filter(
+      (set) => set.weight > 0 || set.reps > 0
+    ).length;
+  }, 0);
+
+  const resumoRows = [
+    ["Relatório", reportTitle],
+    ["Data do relatório", formatDate(reportDate)],
+    [],
+    ["Resumo do dia"],
+    ["Data", "Treinos no dia", "Séries preenchidas", "Volume total kg"],
+    [formatDate(reportDate), sessions.length, totalSets, totalVolume],
+  ];
+
+  const treinoRows = [
+    ["Data", "Treino", "Sensação", "Volume kg", "Observação"],
+    ...sessions.map((session) => [
+      formatDate(session.date),
+      session.workoutName,
+      session.feeling,
+      calculateRecordVolume(session),
+      session.notes || "",
+    ]),
+  ];
+
+  const exercicioRows = [
+    [
+      "Data",
+      "Treino",
+      "Sensação",
+      "Exercício",
+      "Leve kg",
+      "Leve reps",
+      "Interm. kg",
+      "Interm. reps",
+      "Trab. 1 kg",
+      "Trab. 1 reps",
+      "Trab. 2 kg",
+      "Trab. 2 reps",
+      "Volume exercício kg",
+      "Nota",
+    ],
+  ];
+
+  sessions.forEach((session) => {
+    session.exercises.forEach((exercise) => {
+      const warmup = findSet(exercise, "warmup");
+      const feeder = findSet(exercise, "feeder");
+      const work1 = findSet(exercise, "work1");
+      const work2 = findSet(exercise, "work2");
+      const exerciseVolume = exercise.sets
+        .filter((set) => set.key.startsWith("work"))
+        .reduce((sum, set) => sum + set.weight * set.reps, 0);
+
+      exercicioRows.push([
+        formatDate(session.date),
+        session.workoutName,
+        session.feeling,
+        exercise.name,
+        emptyIfZero(warmup.weight),
+        emptyIfZero(warmup.reps),
+        emptyIfZero(feeder.weight),
+        emptyIfZero(feeder.reps),
+        emptyIfZero(work1.weight),
+        emptyIfZero(work1.reps),
+        emptyIfZero(work2.weight),
+        emptyIfZero(work2.reps),
+        exerciseVolume,
+        exercise.note || "",
+      ]);
+    });
+  });
+
+  return [
+    { name: "Resumo", rows: resumoRows },
+    { name: "Treinos", rows: treinoRows },
+    { name: "Exercícios", rows: exercicioRows },
+  ];
+}
+
+function createXlsxBlob(sheets) {
+  const files = buildXlsxFiles(sheets);
+  const zipBytes = createZip(files);
+  return new Blob([zipBytes], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+}
+
+function buildXlsxFiles(sheets) {
+  const sheetOverrides = sheets.map((_, index) =>
+    `<Override PartName="/xl/worksheets/sheet${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`
+  ).join("");
+  const sheetEntries = sheets.map((sheet, index) =>
+    `<sheet name="${escapeXml(trimSheetName(sheet.name))}" sheetId="${index + 1}" r:id="rId${index + 1}"/>`
+  ).join("");
+  const sheetRels = sheets.map((_, index) =>
+    `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${index + 1}.xml"/>`
+  ).join("");
+
+  return [
+    {
+      name: "[Content_Types].xml",
+      content: `<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  ${sheetOverrides}
+</Types>`,
+    },
+    {
+      name: "_rels/.rels",
+      content: `<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`,
+    },
+    {
+      name: "xl/workbook.xml",
+      content: `<?xml version="1.0" encoding="UTF-8"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>${sheetEntries}</sheets>
+</workbook>`,
+    },
+    {
+      name: "xl/_rels/workbook.xml.rels",
+      content: `<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  ${sheetRels}
+</Relationships>`,
+    },
+    ...sheets.map((sheet, index) => ({
+      name: `xl/worksheets/sheet${index + 1}.xml`,
+      content: buildSheetXml(sheet.rows),
+    })),
+  ];
+}
+
+function buildSheetXml(rows) {
+  const rowsXml = rows.map((row, rowIndex) => {
+    const cells = row.map((value, colIndex) => buildCellXml(value, rowIndex + 1, colIndex + 1)).join("");
+    return `<row r="${rowIndex + 1}">${cells}</row>`;
+  }).join("");
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>${rowsXml}</sheetData>
+</worksheet>`;
+}
+
+function buildCellXml(value, rowIndex, colIndex) {
+  if (value === "" || value === null || value === undefined) return "";
+
+  const cellRef = `${columnName(colIndex)}${rowIndex}`;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return `<c r="${cellRef}"><v>${value}</v></c>`;
+  }
+
+  return `<c r="${cellRef}" t="inlineStr"><is><t>${escapeXml(value)}</t></is></c>`;
+}
+
+function createZip(files) {
+  const encoder = new TextEncoder();
+  const now = new Date();
+  const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | Math.floor(now.getSeconds() / 2);
+  const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+
+  files.forEach((file) => {
+    const nameBytes = encoder.encode(file.name);
+    const data = encoder.encode(file.content);
+    const crc = crc32(data);
+
+    const localHeader = new Uint8Array(30 + nameBytes.length);
+    const localView = new DataView(localHeader.buffer);
+    writeUint32(localView, 0, 0x04034b50);
+    writeUint16(localView, 4, 20);
+    writeUint16(localView, 6, 0);
+    writeUint16(localView, 8, 0);
+    writeUint16(localView, 10, dosTime);
+    writeUint16(localView, 12, dosDate);
+    writeUint32(localView, 14, crc);
+    writeUint32(localView, 18, data.length);
+    writeUint32(localView, 22, data.length);
+    writeUint16(localView, 26, nameBytes.length);
+    writeUint16(localView, 28, 0);
+    localHeader.set(nameBytes, 30);
+    localParts.push(localHeader, data);
+
+    const centralHeader = new Uint8Array(46 + nameBytes.length);
+    const centralView = new DataView(centralHeader.buffer);
+    writeUint32(centralView, 0, 0x02014b50);
+    writeUint16(centralView, 4, 20);
+    writeUint16(centralView, 6, 20);
+    writeUint16(centralView, 8, 0);
+    writeUint16(centralView, 10, 0);
+    writeUint16(centralView, 12, dosTime);
+    writeUint16(centralView, 14, dosDate);
+    writeUint32(centralView, 16, crc);
+    writeUint32(centralView, 20, data.length);
+    writeUint32(centralView, 24, data.length);
+    writeUint16(centralView, 28, nameBytes.length);
+    writeUint16(centralView, 30, 0);
+    writeUint16(centralView, 32, 0);
+    writeUint16(centralView, 34, 0);
+    writeUint16(centralView, 36, 0);
+    writeUint32(centralView, 38, 0);
+    writeUint32(centralView, 42, offset);
+    centralHeader.set(nameBytes, 46);
+    centralParts.push(centralHeader);
+
+    offset += localHeader.length + data.length;
+  });
+
+  const centralOffset = offset;
+  const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0);
+  const end = new Uint8Array(22);
+  const endView = new DataView(end.buffer);
+  writeUint32(endView, 0, 0x06054b50);
+  writeUint16(endView, 4, 0);
+  writeUint16(endView, 6, 0);
+  writeUint16(endView, 8, files.length);
+  writeUint16(endView, 10, files.length);
+  writeUint32(endView, 12, centralSize);
+  writeUint32(endView, 16, centralOffset);
+  writeUint16(endView, 20, 0);
+
+  return concatBytes([...localParts, ...centralParts, end]);
+}
+
+function concatBytes(parts) {
+  const total = parts.reduce((sum, part) => sum + part.length, 0);
+  const output = new Uint8Array(total);
+  let offset = 0;
+  parts.forEach((part) => {
+    output.set(part, offset);
+    offset += part.length;
+  });
+  return output;
+}
+
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+const CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let i = 0; i < 256; i += 1) {
+    let value = i;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+    }
+    table[i] = value >>> 0;
+  }
+  return table;
+})();
+
+function writeUint16(view, offset, value) {
+  view.setUint16(offset, value, true);
+}
+
+function writeUint32(view, offset, value) {
+  view.setUint32(offset, value >>> 0, true);
+}
+
+function columnName(index) {
+  let name = "";
+  let current = index;
+  while (current > 0) {
+    const remainder = (current - 1) % 26;
+    name = String.fromCharCode(65 + remainder) + name;
+    current = Math.floor((current - 1) / 26);
+  }
+  return name;
+}
+
+function trimSheetName(value) {
+  return String(value).replace(/[\\/\?\*\[\]:]/g, " ").slice(0, 31) || "Planilha";
+}
+
 function saveDraft() {
   const draft = collectSession();
   draft.reportName = els.reportName.value.trim();
@@ -879,6 +1168,10 @@ function findSet(exercise, setKey) {
   return exercise.sets.find((set) => set.key === setKey) || { weight: 0, reps: 0 };
 }
 
+function emptyIfZero(value) {
+  return value || "";
+}
+
 function getRecentRecords(limit) {
   return [...state.records]
     .sort((a, b) => {
@@ -951,6 +1244,15 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function escapeXml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
 }
 
 function formatCellNumber(value) {
