@@ -521,7 +521,7 @@ function pickChartHistoryPoints(points) {
 function drawLineChart(container, points, ariaLabel) {
   const width = 420;
   const height = 188;
-  const padding = { top: 18, right: 16, bottom: 42, left: 36 };
+  const padding = { top: 28, right: 52, bottom: 42, left: 52 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
   const minValue = Math.min(...points.map((point) => point.value), 0);
@@ -563,7 +563,12 @@ function drawLineChart(container, points, ariaLabel) {
   line.setAttribute("class", "line-path");
   svg.appendChild(line);
 
-  coords.forEach((point) => {
+  coords.forEach((point, index) => {
+    const isFirst = index === 0;
+    const isLast = index === coords.length - 1;
+    const labelAnchor = isFirst ? "start" : isLast ? "end" : "middle";
+    const labelX = isFirst ? point.x + 2 : isLast ? point.x - 2 : point.x;
+
     const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     circle.setAttribute("cx", point.x);
     circle.setAttribute("cy", point.y);
@@ -572,17 +577,17 @@ function drawLineChart(container, points, ariaLabel) {
     svg.appendChild(circle);
 
     const value = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    value.setAttribute("x", point.x);
+    value.setAttribute("x", labelX);
     value.setAttribute("y", Math.max(13, point.y - 10));
-    value.setAttribute("text-anchor", "middle");
+    value.setAttribute("text-anchor", labelAnchor);
     value.setAttribute("class", "point-caption");
     value.textContent = `${formatNumber(point.value)}kg`;
     svg.appendChild(value);
 
     const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    label.setAttribute("x", point.x);
+    label.setAttribute("x", labelX);
     label.setAttribute("y", height - 16);
-    label.setAttribute("text-anchor", "middle");
+    label.setAttribute("text-anchor", labelAnchor);
     label.setAttribute("class", "point-caption");
     label.textContent = formatShortDate(point.date);
     svg.appendChild(label);

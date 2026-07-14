@@ -679,6 +679,10 @@ textarea:focus {
     display: grid;
   }
 
+  .point-caption {
+    font-size: 0.7rem;
+  }
+
   .set-grid {
     grid-template-columns: minmax(70px, 1fr) minmax(80px, 1fr) minmax(60px, 0.7fr);
     gap: 6px;
