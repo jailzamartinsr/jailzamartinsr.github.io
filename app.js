@@ -514,9 +514,9 @@ function renderExerciseChart() {
 }
 
 function drawLineChart(container, points, ariaLabel) {
-  const width = Math.max(420, points.length * 86);
+  const width = 420;
   const height = 188;
-  const padding = { top: 18, right: 18, bottom: 42, left: 42 };
+  const padding = { top: 18, right: 16, bottom: 42, left: 36 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
   const minValue = Math.min(...points.map((point) => point.value), 0);
