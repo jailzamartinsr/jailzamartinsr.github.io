@@ -173,53 +173,6 @@ h2 {
   font-size: 1rem;
 }
 
-.compact-heading {
-  margin-bottom: 8px;
-}
-
-.sequence-list {
-  display: grid;
-  gap: 7px;
-}
-
-.sequence-item {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 8px;
-  align-items: center;
-  padding: 9px 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fbfdff;
-}
-
-.sequence-number {
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  border-radius: 8px;
-  background: var(--accent);
-  color: white;
-  font-size: 0.78rem;
-  font-weight: 900;
-}
-
-.sequence-item strong,
-.sequence-item small {
-  display: block;
-}
-
-.sequence-item small,
-.sequence-volume {
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-
-.sequence-volume {
-  font-weight: 850;
-}
-
 .session-panel {
   padding: 12px;
 }

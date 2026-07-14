@@ -73,7 +73,6 @@ const els = {
   reportName: document.querySelector("#reportName"),
   lastWorkoutName: document.querySelector("#lastWorkoutName"),
   nextWorkoutName: document.querySelector("#nextWorkoutName"),
-  recentSequenceList: document.querySelector("#recentSequenceList"),
   saveSession: document.querySelector("#saveSession"),
   clearCurrent: document.querySelector("#clearCurrent"),
   exportDailyReport: document.querySelector("#exportDailyReport"),
@@ -361,33 +360,13 @@ function deleteRecord(id) {
 }
 
 function renderSequence() {
-  const recent = getRecentRecords(4);
+  const recent = getRecentRecords(1);
   const last = recent[0];
   const nextKey = last ? getNextWorkoutKey(last.workoutKey) : state.workoutKey;
 
   els.lastWorkoutName.textContent = last ? `${last.workoutName} em ${formatDate(last.date)}` : "-";
   els.nextWorkoutName.textContent = WORKOUTS[nextKey]?.name || "-";
   renderWorkoutMarkers(last?.workoutKey);
-
-  if (!recent.length) {
-    els.recentSequenceList.innerHTML = '<p class="empty-state">Nenhum treino salvo ainda.</p>';
-    return;
-  }
-
-  els.recentSequenceList.innerHTML = "";
-  recent.forEach((record, index) => {
-    const item = document.createElement("div");
-    item.className = "sequence-item";
-    item.innerHTML = `
-      <span class="sequence-number">${index + 1}</span>
-      <div>
-        <strong>${record.workoutName}</strong>
-        <small>${formatDate(record.date)} · sensação ${record.feeling}</small>
-      </div>
-      <span class="sequence-volume">${formatNumber(calculateRecordVolume(record))} kg</span>
-    `;
-    els.recentSequenceList.appendChild(item);
-  });
 }
 
 function renderWorkoutMarkers(lastWorkoutKey) {

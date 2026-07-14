@@ -1,4 +1,4 @@
-const CACHE_NAME = "treino-upper-lower-v10";
+const CACHE_NAME = "treino-upper-lower-v11";
 const ASSETS = [
   "./",
   "./index.html",
