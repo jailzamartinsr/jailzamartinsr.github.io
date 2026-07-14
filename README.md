@@ -23,3 +23,7 @@ O app usa o histórico salvo no navegador para mostrar:
 
 - volume das últimas sessões;
 - evolução da maior carga por exercício nas séries de trabalho.
+
+## Relatório do dia
+
+O botão `Relatório do dia` exporta uma planilha `.xls` apenas com a data selecionada no app. O nome do arquivo pode ser editado no campo `Nome do relatório`.

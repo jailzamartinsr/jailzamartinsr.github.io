@@ -70,11 +70,13 @@ const els = {
   sessionDate: document.querySelector("#sessionDate"),
   sessionFeeling: document.querySelector("#sessionFeeling"),
   sessionNotes: document.querySelector("#sessionNotes"),
+  reportName: document.querySelector("#reportName"),
   lastWorkoutName: document.querySelector("#lastWorkoutName"),
   nextWorkoutName: document.querySelector("#nextWorkoutName"),
   recentSequenceList: document.querySelector("#recentSequenceList"),
   saveSession: document.querySelector("#saveSession"),
   clearCurrent: document.querySelector("#clearCurrent"),
+  exportDailyReport: document.querySelector("#exportDailyReport"),
   historyList: document.querySelector("#historyList"),
   exportCsv: document.querySelector("#exportCsv"),
   volumeChart: document.querySelector("#volumeChart"),
@@ -133,12 +135,13 @@ function bindEvents() {
     header.setAttribute("aria-expanded", String(!card.classList.contains("is-collapsed")));
   });
 
-  [els.sessionDate, els.sessionFeeling, els.sessionNotes].forEach((element) => {
+  [els.sessionDate, els.sessionFeeling, els.sessionNotes, els.reportName].forEach((element) => {
     element.addEventListener("input", saveDraft);
   });
 
   els.saveSession.addEventListener("click", saveSession);
   els.clearCurrent.addEventListener("click", clearCurrentScreen);
+  els.exportDailyReport.addEventListener("click", exportDailyReport);
   els.exportCsv.addEventListener("click", exportCsv);
   els.workoutChartSelect.addEventListener("change", renderVolumeChart);
   els.exerciseChartSelect.addEventListener("change", renderExerciseChart);
@@ -261,6 +264,26 @@ function clearCurrentScreen() {
   updateSummary();
 }
 
+function exportDailyReport() {
+  const reportDate = els.sessionDate.value || today();
+  const sessions = getDailyReportSessions(reportDate);
+
+  if (!sessions.length) {
+    alert("Não há treino salvo ou preenchido para a data selecionada.");
+    return;
+  }
+
+  const reportTitle = (els.reportName.value.trim() || `Relatório do treino - ${formatDate(reportDate)}`);
+  const html = buildDailyReportWorkbook(reportTitle, reportDate, sessions);
+  const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${sanitizeFilename(reportTitle)}.xls`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 function updateSummary() {
   const session = collectSession();
   const workSets = session.exercises.flatMap((exercise) =>
@@ -293,11 +316,37 @@ function renderHistory() {
         <strong>${formatDate(record.date)} · ${record.workoutName}</strong>
         <small>${formatNumber(volume)} kg de volume · sensação ${record.feeling}</small>
       </div>
-      <button class="danger" type="button" aria-label="Excluir treino">×</button>
+      <div class="history-actions">
+        <button class="small-action" type="button" data-action="rename" aria-label="Editar nome do treino">Editar</button>
+        <button class="danger" type="button" data-action="delete" aria-label="Excluir treino">×</button>
+      </div>
     `;
-    item.querySelector("button").addEventListener("click", () => deleteRecord(record.id));
+    item.querySelector('[data-action="rename"]').addEventListener("click", () => renameRecord(record.id));
+    item.querySelector('[data-action="delete"]').addEventListener("click", () => deleteRecord(record.id));
     els.historyList.appendChild(item);
   });
+}
+
+function renameRecord(id) {
+  const record = state.records.find((item) => item.id === id);
+  if (!record) return;
+
+  const newName = prompt("Novo nome para este treino salvo:", record.workoutName);
+  if (newName === null) return;
+
+  const trimmedName = newName.trim();
+  if (!trimmedName) {
+    alert("O nome do treino não pode ficar vazio.");
+    return;
+  }
+
+  record.workoutName = trimmedName;
+  persistRecords();
+  renderSequence();
+  renderHistory();
+  renderCharts();
+  renderWorkout();
+  updateSummary();
 }
 
 function deleteRecord(id) {
@@ -574,8 +623,145 @@ function exportCsv() {
   URL.revokeObjectURL(url);
 }
 
+function getDailyReportSessions(reportDate) {
+  const savedSessions = state.records
+    .filter((record) => record.date === reportDate)
+    .sort((a, b) => (a.savedAt || "").localeCompare(b.savedAt || ""));
+
+  if (savedSessions.length) return savedSessions;
+
+  const draftSession = collectSession();
+  const hasAnySet = draftSession.exercises.some((exercise) =>
+    exercise.sets.some((set) => set.weight > 0 || set.reps > 0)
+  );
+
+  return hasAnySet && draftSession.date === reportDate ? [draftSession] : [];
+}
+
+function buildDailyReportWorkbook(reportTitle, reportDate, sessions) {
+  const totalVolume = sessions.reduce((sum, session) => sum + calculateRecordVolume(session), 0);
+  const totalSets = sessions.reduce((sum, session) => {
+    return sum + session.exercises.flatMap((exercise) => exercise.sets).filter(
+      (set) => set.weight > 0 || set.reps > 0
+    ).length;
+  }, 0);
+
+  const detailRows = sessions.flatMap((session) => {
+    return session.exercises.map((exercise) => {
+      const warmup = findSet(exercise, "warmup");
+      const feeder = findSet(exercise, "feeder");
+      const work1 = findSet(exercise, "work1");
+      const work2 = findSet(exercise, "work2");
+      const exerciseVolume = exercise.sets
+        .filter((set) => set.key.startsWith("work"))
+        .reduce((sum, set) => sum + set.weight * set.reps, 0);
+
+      return `
+        <tr>
+          <td>${escapeHtml(formatDate(session.date))}</td>
+          <td>${escapeHtml(session.workoutName)}</td>
+          <td>${escapeHtml(session.feeling)}</td>
+          <td>${escapeHtml(exercise.name)}</td>
+          <td>${formatCellNumber(warmup.weight)}</td>
+          <td>${formatCellNumber(warmup.reps)}</td>
+          <td>${formatCellNumber(feeder.weight)}</td>
+          <td>${formatCellNumber(feeder.reps)}</td>
+          <td>${formatCellNumber(work1.weight)}</td>
+          <td>${formatCellNumber(work1.reps)}</td>
+          <td>${formatCellNumber(work2.weight)}</td>
+          <td>${formatCellNumber(work2.reps)}</td>
+          <td>${formatCellNumber(exerciseVolume)}</td>
+          <td>${escapeHtml(exercise.note || "")}</td>
+        </tr>
+      `;
+    }).join("");
+  }).join("");
+
+  const sessionRows = sessions.map((session) => `
+    <tr>
+      <td>${escapeHtml(formatDate(session.date))}</td>
+      <td>${escapeHtml(session.workoutName)}</td>
+      <td>${escapeHtml(session.feeling)}</td>
+      <td>${formatCellNumber(calculateRecordVolume(session))}</td>
+      <td>${escapeHtml(session.notes || "")}</td>
+    </tr>
+  `).join("");
+
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <style>
+      body { font-family: Arial, sans-serif; color: #172033; }
+      h1 { font-size: 22px; margin: 0 0 6px; }
+      h2 { font-size: 16px; margin: 22px 0 8px; }
+      .meta { color: #667085; margin-bottom: 14px; }
+      table { border-collapse: collapse; width: 100%; margin-bottom: 18px; }
+      th { background: #0f766e; color: #ffffff; font-weight: 700; }
+      th, td { border: 1px solid #d8dee8; padding: 8px; text-align: left; }
+      .summary th { background: #172033; }
+      .number { text-align: right; }
+    </style>
+  </head>
+  <body>
+    <h1>${escapeHtml(reportTitle)}</h1>
+    <div class="meta">Data do relatório: ${escapeHtml(formatDate(reportDate))}</div>
+
+    <h2>Resumo do dia</h2>
+    <table class="summary">
+      <tr>
+        <th>Data</th>
+        <th>Treinos no dia</th>
+        <th>Séries preenchidas</th>
+        <th>Volume total</th>
+      </tr>
+      <tr>
+        <td>${escapeHtml(formatDate(reportDate))}</td>
+        <td>${sessions.length}</td>
+        <td class="number">${totalSets}</td>
+        <td class="number">${formatCellNumber(totalVolume)} kg</td>
+      </tr>
+    </table>
+
+    <h2>Treinos registrados</h2>
+    <table>
+      <tr>
+        <th>Data</th>
+        <th>Treino</th>
+        <th>Sensação</th>
+        <th>Volume</th>
+        <th>Observação</th>
+      </tr>
+      ${sessionRows}
+    </table>
+
+    <h2>Detalhamento por exercício</h2>
+    <table>
+      <tr>
+        <th>Data</th>
+        <th>Treino</th>
+        <th>Sensação</th>
+        <th>Exercício</th>
+        <th>Leve kg</th>
+        <th>Leve reps</th>
+        <th>Interm. kg</th>
+        <th>Interm. reps</th>
+        <th>Trab. 1 kg</th>
+        <th>Trab. 1 reps</th>
+        <th>Trab. 2 kg</th>
+        <th>Trab. 2 reps</th>
+        <th>Volume exercício</th>
+        <th>Nota</th>
+      </tr>
+      ${detailRows}
+    </table>
+  </body>
+</html>`;
+}
+
 function saveDraft() {
   const draft = collectSession();
+  draft.reportName = els.reportName.value.trim();
   localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
 }
 
@@ -594,6 +780,7 @@ function loadDraft() {
     els.sessionDate.value = draft.date || today();
     els.sessionFeeling.value = draft.feeling || "normal";
     els.sessionNotes.value = draft.notes || "";
+    els.reportName.value = draft.reportName || "";
   } catch {
     localStorage.removeItem(DRAFT_KEY);
   }
@@ -699,6 +886,10 @@ function appendEmpty(element, message) {
   element.appendChild(empty);
 }
 
+function findSet(exercise, setKey) {
+  return exercise.sets.find((set) => set.key === setKey) || { weight: 0, reps: 0 };
+}
+
 function getRecentRecords(limit) {
   return [...state.records]
     .sort((a, b) => {
@@ -762,6 +953,29 @@ function today() {
 
 function escapeCsv(value) {
   return `"${String(value).replaceAll('"', '""')}"`;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function formatCellNumber(value) {
+  return value ? String(value).replace(".", ",") : "";
+}
+
+function sanitizeFilename(value) {
+  return String(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\\/:*?"<>|]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80) || `relatorio-treino-${today()}`;
 }
 
 function registerServiceWorker() {

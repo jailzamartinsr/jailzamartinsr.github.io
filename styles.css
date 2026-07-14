@@ -398,7 +398,7 @@ textarea:focus {
 
 .actions {
   display: grid;
-  grid-template-columns: 1.4fr 1fr;
+  grid-template-columns: 1.25fr 1.15fr 1fr;
   gap: 10px;
   margin: 14px 0;
 }
@@ -609,6 +609,12 @@ textarea:focus {
   background: #fbfdff;
 }
 
+.history-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
 .history-item strong,
 .history-item small {
   display: block;
@@ -627,6 +633,16 @@ textarea:focus {
   background: #fff5f4;
   color: var(--danger);
   font-weight: 900;
+}
+
+.small-action {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--accent-strong);
+  font-size: 0.78rem;
+  font-weight: 850;
 }
 
 .empty-state {
@@ -663,6 +679,14 @@ textarea:focus {
   .set-grid {
     grid-template-columns: minmax(70px, 1fr) minmax(80px, 1fr) minmax(60px, 0.7fr);
     gap: 6px;
+  }
+
+  .history-item {
+    grid-template-columns: 1fr;
+  }
+
+  .history-actions {
+    justify-content: flex-end;
   }
 
   .set-name {
