@@ -699,6 +699,22 @@ function appendEmpty(element, message) {
   element.appendChild(empty);
 }
 
+function getRecentRecords(limit) {
+  return [...state.records]
+    .sort((a, b) => {
+      const dateOrder = b.date.localeCompare(a.date);
+      if (dateOrder) return dateOrder;
+      return (b.savedAt || "").localeCompare(a.savedAt || "");
+    })
+    .slice(0, limit);
+}
+
+function getNextWorkoutKey(workoutKey) {
+  const currentIndex = WORKOUT_ORDER.indexOf(workoutKey);
+  if (currentIndex === -1) return WORKOUT_ORDER[0];
+  return WORKOUT_ORDER[(currentIndex + 1) % WORKOUT_ORDER.length];
+}
+
 function loadRecords() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
