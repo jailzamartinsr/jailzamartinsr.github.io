@@ -58,6 +58,7 @@ const SETS = [
 
 const STORAGE_KEY = "treino-upper-lower-v1";
 const DRAFT_KEY = "treino-upper-lower-draft-v1";
+const WORKOUT_ORDER = ["upperA", "lowerA", "upperB", "lowerB"];
 
 const state = {
   workoutKey: "upperA",
@@ -69,11 +70,16 @@ const els = {
   sessionDate: document.querySelector("#sessionDate"),
   sessionFeeling: document.querySelector("#sessionFeeling"),
   sessionNotes: document.querySelector("#sessionNotes"),
+  lastWorkoutName: document.querySelector("#lastWorkoutName"),
+  nextWorkoutName: document.querySelector("#nextWorkoutName"),
+  recentSequenceList: document.querySelector("#recentSequenceList"),
   saveSession: document.querySelector("#saveSession"),
   clearCurrent: document.querySelector("#clearCurrent"),
   historyList: document.querySelector("#historyList"),
   exportCsv: document.querySelector("#exportCsv"),
   volumeChart: document.querySelector("#volumeChart"),
+  workoutChartSelect: document.querySelector("#workoutChartSelect"),
+  volumeChartSummary: document.querySelector("#volumeChartSummary"),
   exerciseChartSelect: document.querySelector("#exerciseChartSelect"),
   exerciseChartSummary: document.querySelector("#exerciseChartSummary"),
   exerciseChart: document.querySelector("#exerciseChart"),
@@ -92,6 +98,7 @@ function init() {
   bindEvents();
   loadDraft();
   renderWorkout();
+  renderSequence();
   renderHistory();
   renderCharts();
   updateSummary();
@@ -107,6 +114,8 @@ function bindEvents() {
         item.classList.toggle("is-active", item === button);
       });
       renderWorkout();
+      els.workoutChartSelect.value = state.workoutKey;
+      renderCharts();
       updateSummary();
     });
   });
@@ -131,6 +140,7 @@ function bindEvents() {
   els.saveSession.addEventListener("click", saveSession);
   els.clearCurrent.addEventListener("click", clearCurrentScreen);
   els.exportCsv.addEventListener("click", exportCsv);
+  els.workoutChartSelect.addEventListener("change", renderVolumeChart);
   els.exerciseChartSelect.addEventListener("change", renderExerciseChart);
 
   window.addEventListener("beforeinstallprompt", (event) => {
@@ -234,6 +244,7 @@ function saveSession() {
   state.records.unshift(session);
   persistRecords();
   localStorage.removeItem(DRAFT_KEY);
+  renderSequence();
   renderHistory();
   renderCharts();
   updateSummary();
@@ -293,16 +304,68 @@ function deleteRecord(id) {
   if (!confirm("Excluir este treino do histórico?")) return;
   state.records = state.records.filter((record) => record.id !== id);
   persistRecords();
+  renderSequence();
   renderHistory();
   renderCharts();
   renderWorkout();
   updateSummary();
 }
 
+function renderSequence() {
+  const recent = getRecentRecords(4);
+  const last = recent[0];
+  const nextKey = last ? getNextWorkoutKey(last.workoutKey) : state.workoutKey;
+
+  els.lastWorkoutName.textContent = last ? `${last.workoutName} em ${formatDate(last.date)}` : "-";
+  els.nextWorkoutName.textContent = WORKOUTS[nextKey]?.name || "-";
+  renderWorkoutMarkers(last?.workoutKey);
+
+  if (!recent.length) {
+    els.recentSequenceList.innerHTML = '<p class="empty-state">Nenhum treino salvo ainda.</p>';
+    return;
+  }
+
+  els.recentSequenceList.innerHTML = "";
+  recent.forEach((record, index) => {
+    const item = document.createElement("div");
+    item.className = "sequence-item";
+    item.innerHTML = `
+      <span class="sequence-number">${index + 1}</span>
+      <div>
+        <strong>${record.workoutName}</strong>
+        <small>${formatDate(record.date)} · sensação ${record.feeling}</small>
+      </div>
+      <span class="sequence-volume">${formatNumber(calculateRecordVolume(record))} kg</span>
+    `;
+    els.recentSequenceList.appendChild(item);
+  });
+}
+
+function renderWorkoutMarkers(lastWorkoutKey) {
+  document.querySelectorAll("[data-workout]").forEach((button) => {
+    button.classList.toggle("is-last-done", button.dataset.workout === lastWorkoutKey);
+  });
+}
+
 function renderCharts() {
+  renderWorkoutVolumeOptions();
   renderExerciseOptions();
   renderVolumeChart();
   renderExerciseChart();
+}
+
+function renderWorkoutVolumeOptions() {
+  const selected = els.workoutChartSelect.value || state.workoutKey;
+
+  els.workoutChartSelect.innerHTML = "";
+  Object.entries(WORKOUTS).forEach(([key, workout]) => {
+    const option = document.createElement("option");
+    option.value = key;
+    option.textContent = workout.name;
+    els.workoutChartSelect.appendChild(option);
+  });
+
+  els.workoutChartSelect.value = WORKOUTS[selected] ? selected : state.workoutKey;
 }
 
 function renderExerciseOptions() {
@@ -334,45 +397,43 @@ function renderExerciseOptions() {
 
 function renderVolumeChart() {
   clearElement(els.volumeChart);
+  els.volumeChartSummary.textContent = "";
 
   if (!state.records.length) {
     appendEmpty(els.volumeChart, "Salve alguns treinos para ver o volume aqui.");
     return;
   }
 
+  const workoutKey = els.workoutChartSelect.value || state.workoutKey;
   const sessions = [...state.records]
+    .filter((record) => record.workoutKey === workoutKey)
     .sort((a, b) => a.date.localeCompare(b.date) || (a.savedAt || "").localeCompare(b.savedAt || ""))
-    .slice(-8)
     .map((record) => ({
       label: formatShortDate(record.date),
+      date: record.date,
       workout: record.workoutName,
       volume: calculateRecordVolume(record),
     }));
-  const maxVolume = Math.max(...sessions.map((session) => session.volume), 1);
 
-  sessions.forEach((session) => {
-    const item = document.createElement("div");
-    item.className = "bar-item";
+  if (sessions.length < 2) {
+    appendEmpty(els.volumeChart, "Esse treino precisa de pelo menos 2 registros para mostrar a progressão.");
+    if (sessions.length === 1) {
+      els.volumeChartSummary.textContent = `Registro atual: ${formatNumber(sessions[0].volume)} kg.`;
+    }
+    return;
+  }
 
-    const value = document.createElement("span");
-    value.className = "bar-value";
-    value.textContent = `${formatNumber(session.volume)} kg`;
+  const best = Math.max(...sessions.map((session) => session.volume));
+  const last = sessions[sessions.length - 1];
+  const first = sessions[0];
+  const delta = last.volume - first.volume;
+  els.volumeChartSummary.textContent =
+    `Maior volume: ${formatNumber(best)} kg. Evolução no período: ${formatSignedNumber(delta)} kg.`;
 
-    const track = document.createElement("div");
-    track.className = "bar-track";
-
-    const fill = document.createElement("div");
-    fill.className = "bar-fill";
-    fill.style.setProperty("--bar-height", `${Math.max(4, (session.volume / maxVolume) * 100)}%`);
-    track.appendChild(fill);
-
-    const label = document.createElement("span");
-    label.className = "bar-label";
-    label.textContent = `${session.label} ${session.workout.replace(" ", "")}`;
-
-    item.append(value, track, label);
-    els.volumeChart.appendChild(item);
-  });
+  drawLineChart(els.volumeChart, sessions.map((session) => ({
+    date: session.date,
+    value: session.volume,
+  })), "Volume do treino");
 }
 
 function renderExerciseChart() {
@@ -397,18 +458,25 @@ function renderExerciseChart() {
   els.exerciseChartSummary.textContent =
     `Melhor carga: ${formatNumber(best)} kg. Evolucao no periodo: ${formatSignedNumber(delta)} kg.`;
 
+  drawLineChart(els.exerciseChart, points.map((point) => ({
+    date: point.date,
+    value: point.weight,
+  })), "Carga do exercício");
+}
+
+function drawLineChart(container, points, ariaLabel) {
   const width = Math.max(420, points.length * 86);
   const height = 188;
   const padding = { top: 18, right: 18, bottom: 42, left: 42 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
-  const minWeight = Math.min(...points.map((point) => point.weight), 0);
-  const maxWeight = Math.max(...points.map((point) => point.weight), 1);
-  const spread = Math.max(maxWeight - minWeight, 1);
+  const minValue = Math.min(...points.map((point) => point.value), 0);
+  const maxValue = Math.max(...points.map((point) => point.value), 1);
+  const spread = Math.max(maxValue - minValue, 1);
 
   const coords = points.map((point, index) => {
     const x = padding.left + (points.length === 1 ? chartWidth / 2 : (index / (points.length - 1)) * chartWidth);
-    const y = padding.top + chartHeight - ((point.weight - minWeight) / spread) * chartHeight;
+    const y = padding.top + chartHeight - ((point.value - minValue) / spread) * chartHeight;
     return { ...point, x, y };
   });
 
@@ -418,7 +486,7 @@ function renderExerciseChart() {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
   svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", `Grafico de evolucao de ${exerciseName}`);
+  svg.setAttribute("aria-label", ariaLabel);
 
   [0, 0.5, 1].forEach((ratio) => {
     const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
@@ -454,7 +522,7 @@ function renderExerciseChart() {
     value.setAttribute("y", Math.max(13, point.y - 10));
     value.setAttribute("text-anchor", "middle");
     value.setAttribute("class", "point-caption");
-    value.textContent = `${formatNumber(point.weight)}kg`;
+    value.textContent = `${formatNumber(point.value)}kg`;
     svg.appendChild(value);
 
     const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
@@ -466,7 +534,7 @@ function renderExerciseChart() {
     svg.appendChild(label);
   });
 
-  els.exerciseChart.appendChild(svg);
+  container.appendChild(svg);
 }
 
 function exportCsv() {

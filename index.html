@@ -31,6 +31,23 @@
           <button class="chip" data-workout="lowerB" type="button">Inferior B</button>
         </section>
 
+        <section class="sequence-panel" aria-label="Sequencia dos treinos">
+          <div class="sequence-status">
+            <div>
+              <span class="metric-label">Ultimo treino</span>
+              <strong id="lastWorkoutName">-</strong>
+            </div>
+            <div>
+              <span class="metric-label">Proximo sugerido</span>
+              <strong id="nextWorkoutName">-</strong>
+            </div>
+          </div>
+          <div class="section-heading compact-heading">
+            <h2>Ultimos 4 treinos</h2>
+          </div>
+          <div id="recentSequenceList" class="sequence-list"></div>
+        </section>
+
         <section class="session-panel">
           <div class="session-meta">
             <label>
@@ -92,10 +109,15 @@
 
           <article class="chart-card">
             <div class="chart-title">
-              <strong>Volume por treino</strong>
-              <span>Ultimas sessoes salvas</span>
+              <strong>Progressão por treino</strong>
+              <span>Volume das sessões salvas</span>
             </div>
-            <div id="volumeChart" class="bar-chart"></div>
+            <label class="chart-select-label">
+              Treino
+              <select id="workoutChartSelect"></select>
+            </label>
+            <div id="volumeChartSummary" class="chart-summary"></div>
+            <div id="volumeChart" class="line-chart"></div>
           </article>
 
           <article class="chart-card">

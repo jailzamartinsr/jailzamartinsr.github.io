@@ -115,15 +115,107 @@ h2 {
   color: white;
 }
 
+.chip.is-last-done {
+  border-color: rgba(15, 118, 110, 0.45);
+  box-shadow: inset 0 -3px 0 rgba(15, 118, 110, 0.25);
+}
+
+.chip.is-last-done::after {
+  content: "ultimo";
+  display: block;
+  margin-top: 2px;
+  font-size: 0.62rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.chip.is-active.is-last-done::after {
+  color: rgba(255, 255, 255, 0.84);
+}
+
 .session-panel,
 .guidance,
 .exercise-card,
 .summary-panel,
+.sequence-panel,
 .history {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.9);
   box-shadow: var(--shadow);
+}
+
+.sequence-panel {
+  margin-bottom: 12px;
+  padding: 12px;
+}
+
+.sequence-status {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.sequence-status div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--soft);
+}
+
+.sequence-status strong {
+  overflow-wrap: anywhere;
+  font-size: 1rem;
+}
+
+.compact-heading {
+  margin-bottom: 8px;
+}
+
+.sequence-list {
+  display: grid;
+  gap: 7px;
+}
+
+.sequence-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.sequence-number {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--accent);
+  color: white;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.sequence-item strong,
+.sequence-item small {
+  display: block;
+}
+
+.sequence-item small,
+.sequence-volume {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.sequence-volume {
+  font-weight: 850;
 }
 
 .session-panel {
@@ -554,6 +646,7 @@ textarea:focus {
   }
 
   .session-meta,
+  .sequence-status,
   .actions,
   .summary-panel {
     grid-template-columns: 1fr;
