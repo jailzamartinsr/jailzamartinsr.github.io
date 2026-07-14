@@ -479,10 +479,10 @@ function renderVolumeChart() {
   els.volumeChartSummary.textContent =
     `Maior volume: ${formatNumber(best)} kg. Evolução no período: ${formatSignedNumber(delta)} kg.`;
 
-  drawLineChart(els.volumeChart, sessions.map((session) => ({
+  drawLineChart(els.volumeChart, pickChartHistoryPoints(sessions.map((session) => ({
     date: session.date,
     value: session.volume,
-  })), "Volume do treino");
+  }))), "Volume do treino");
 }
 
 function renderExerciseChart() {
@@ -507,10 +507,15 @@ function renderExerciseChart() {
   els.exerciseChartSummary.textContent =
     `Melhor carga: ${formatNumber(best)} kg. Evolucao no periodo: ${formatSignedNumber(delta)} kg.`;
 
-  drawLineChart(els.exerciseChart, points.map((point) => ({
+  drawLineChart(els.exerciseChart, pickChartHistoryPoints(points.map((point) => ({
     date: point.date,
     value: point.weight,
-  })), "Carga do exercício");
+  }))), "Carga do exercício");
+}
+
+function pickChartHistoryPoints(points) {
+  if (points.length <= 3) return points;
+  return [points[0], points[points.length - 2], points[points.length - 1]];
 }
 
 function drawLineChart(container, points, ariaLabel) {
