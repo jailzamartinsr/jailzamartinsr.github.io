@@ -50,8 +50,8 @@ const WORKOUTS = {
 };
 
 const SETS = [
-  { key: "warmup", label: "Leve", target: "12" },
-  { key: "feeder", label: "Interm.", target: "6" },
+  { key: "warmup", label: "Peso leve", target: "12" },
+  { key: "feeder", label: "Intermediário", target: "6" },
   { key: "work1", label: "Trab. 1", target: "8-10" },
   { key: "work2", label: "Trab. 2", target: "8-10" },
 ];
@@ -84,7 +84,6 @@ const els = {
   previousExercise: document.querySelector("#previousExercise"),
   nextExercise: document.querySelector("#nextExercise"),
   nextWorkoutName: document.querySelector("#nextWorkoutName"),
-  saveSession: document.querySelector("#saveSession"),
   clearCurrent: document.querySelector("#clearCurrent"),
   exportDailyReport: document.querySelector("#exportDailyReport"),
   toggleHistory: document.querySelector("#toggleHistory"),
@@ -157,7 +156,6 @@ function bindEvents() {
     element.addEventListener("input", saveDraft);
   });
 
-  els.saveSession.addEventListener("click", saveSession);
   els.clearCurrent.addEventListener("click", clearCurrentScreen);
   els.startWorkoutTimer.addEventListener("click", startWorkoutTimer);
   els.finishWorkoutTimer.addEventListener("click", finishWorkoutTimer);
@@ -198,9 +196,24 @@ function renderWorkout() {
     card.dataset.exercise = exerciseName;
     fragment.querySelector(".exercise-name").textContent = exerciseName;
     fragment.querySelector(".exercise-structure").textContent =
-      "1x12 leve + 1x6 intermediária + 2x8-10 trabalho";
+      "Peso leve 12 reps + intermediário 6 reps + 2x8-10 trabalho";
 
-    SETS.forEach((set) => {
+    const warmupGuide = document.createElement("div");
+    warmupGuide.className = "warmup-guide";
+    warmupGuide.textContent = "Peso leve: 12 repetições · Intermediário: 6 repetições";
+    sets.appendChild(warmupGuide);
+
+    const workHeader = document.createElement("div");
+    workHeader.className = "set-grid set-grid-head";
+    workHeader.setAttribute("aria-hidden", "true");
+    workHeader.innerHTML = `
+      <span>Série</span>
+      <span>Carga</span>
+      <span>Reps</span>
+    `;
+    sets.appendChild(workHeader);
+
+    SETS.filter((set) => set.key.startsWith("work")).forEach((set) => {
       const row = document.createElement("div");
       row.className = "set-grid set-row";
       row.innerHTML = `
@@ -227,6 +240,11 @@ function renderWorkout() {
 }
 
 function startWorkoutTimer() {
+  if (state.sessionTiming.endedAt) {
+    clearExerciseInputs();
+    els.sessionFeeling.value = "normal";
+  }
+
   state.sessionTiming.startedAt = new Date().toISOString();
   state.sessionTiming.endedAt = null;
   state.focusIndex = 0;
@@ -235,6 +253,7 @@ function startWorkoutTimer() {
   renderFocusMode();
   openFocusedExercise();
   saveDraft();
+  updateSummary();
 }
 
 function finishWorkoutTimer() {
@@ -243,11 +262,16 @@ function finishWorkoutTimer() {
     return;
   }
 
+  if (!hasAnyCompletedSet(collectSession())) {
+    alert("Preencha pelo menos uma carga ou repetição antes de finalizar.");
+    return;
+  }
+
   state.sessionTiming.endedAt = new Date().toISOString();
   stopTimerInterval();
   renderTimer();
   renderFocusMode();
-  saveDraft();
+  saveSession({ resetTimer: false, alertMessage: "Treino finalizado e salvo." });
 }
 
 function moveFocusExercise(direction) {
@@ -264,7 +288,7 @@ function renderTimer() {
   const { startedAt, endedAt } = state.sessionTiming;
   els.durationMetric.textContent = startedAt ? formatDuration(getSessionDurationMs()) : "00:00";
   els.timerStatus.textContent = getTimerStatusText(startedAt, endedAt);
-  els.startWorkoutTimer.textContent = startedAt && !endedAt ? "Reiniciar" : "Start treino";
+  els.startWorkoutTimer.textContent = startedAt && !endedAt ? "Reiniciar" : "Início";
   els.finishWorkoutTimer.disabled = !startedAt || Boolean(endedAt);
 
   if (startedAt && !endedAt) {
@@ -326,8 +350,10 @@ function getTimerStatusText(startedAt, endedAt) {
 function collectSession() {
   const exercises = [...els.exerciseList.querySelectorAll(".exercise-card")].map((card) => {
     const sets = SETS.map((set) => {
-      const weight = card.querySelector(`[data-set="${set.key}"][data-field="weight"]`).value.trim();
-      const reps = card.querySelector(`[data-set="${set.key}"][data-field="reps"]`).value.trim();
+      const weightInput = card.querySelector(`[data-set="${set.key}"][data-field="weight"]`);
+      const repsInput = card.querySelector(`[data-set="${set.key}"][data-field="reps"]`);
+      const weight = weightInput ? weightInput.value.trim() : "";
+      const reps = repsInput ? repsInput.value.trim() : "";
       return {
         key: set.key,
         label: set.label,
@@ -358,35 +384,42 @@ function collectSession() {
   };
 }
 
-function saveSession() {
+function saveSession(options = {}) {
+  const { resetTimer = true, alertMessage = "Treino salvo." } = options;
   const session = collectSession();
-  const hasAnySet = session.exercises.some((exercise) =>
-    exercise.sets.some((set) => set.weight > 0 || set.reps > 0)
-  );
 
-  if (!hasAnySet) {
+  if (!hasAnyCompletedSet(session)) {
     alert("Preencha pelo menos uma carga ou repetição antes de salvar.");
-    return;
+    return false;
   }
 
   state.records.unshift(session);
   persistRecords();
   localStorage.removeItem(DRAFT_KEY);
-  state.sessionTiming = { startedAt: null, endedAt: null };
-  stopTimerInterval();
+
+  if (resetTimer) {
+    state.sessionTiming = { startedAt: null, endedAt: null };
+    stopTimerInterval();
+  }
+
   renderTimer();
   renderFocusMode();
   renderSequence();
   renderHistory();
   renderCharts();
   updateSummary();
-  alert("Treino salvo.");
+  alert(alertMessage);
+  return true;
+}
+
+function hasAnyCompletedSet(session) {
+  return session.exercises.some((exercise) =>
+    exercise.sets.some((set) => set.weight > 0 || set.reps > 0)
+  );
 }
 
 function clearCurrentScreen() {
-  els.exerciseList.querySelectorAll("input").forEach((input) => {
-    input.value = "";
-  });
+  clearExerciseInputs();
   els.sessionFeeling.value = "normal";
   state.sessionTiming = { startedAt: null, endedAt: null };
   state.focusIndex = 0;
@@ -395,6 +428,12 @@ function clearCurrentScreen() {
   renderFocusMode();
   saveDraft();
   updateSummary();
+}
+
+function clearExerciseInputs() {
+  els.exerciseList.querySelectorAll("input").forEach((input) => {
+    input.value = "";
+  });
 }
 
 function exportDailyReport() {
@@ -807,14 +846,12 @@ function buildDailyReportWorkbook(reportTitle, reportDate, sessions) {
   const totalVolume = sessions.reduce((sum, session) => sum + calculateRecordVolume(session), 0);
   const totalSets = sessions.reduce((sum, session) => {
     return sum + session.exercises.flatMap((exercise) => exercise.sets).filter(
-      (set) => set.weight > 0 || set.reps > 0
+      (set) => set.key.startsWith("work") && (set.weight > 0 || set.reps > 0)
     ).length;
   }, 0);
 
   const detailRows = sessions.flatMap((session) => {
     return session.exercises.map((exercise) => {
-      const warmup = findSet(exercise, "warmup");
-      const feeder = findSet(exercise, "feeder");
       const work1 = findSet(exercise, "work1");
       const work2 = findSet(exercise, "work2");
       const exerciseVolume = exercise.sets
@@ -827,10 +864,6 @@ function buildDailyReportWorkbook(reportTitle, reportDate, sessions) {
           <td>${escapeHtml(session.workoutName)}</td>
           <td>${escapeHtml(session.feeling)}</td>
           <td>${escapeHtml(exercise.name)}</td>
-          <td>${formatCellNumber(warmup.weight)}</td>
-          <td>${formatCellNumber(warmup.reps)}</td>
-          <td>${formatCellNumber(feeder.weight)}</td>
-          <td>${formatCellNumber(feeder.reps)}</td>
           <td>${formatCellNumber(work1.weight)}</td>
           <td>${formatCellNumber(work1.reps)}</td>
           <td>${formatCellNumber(work2.weight)}</td>
@@ -905,10 +938,6 @@ function buildDailyReportWorkbook(reportTitle, reportDate, sessions) {
         <th>Treino</th>
         <th>Sensação</th>
         <th>Exercício</th>
-        <th>Leve kg</th>
-        <th>Leve reps</th>
-        <th>Interm. kg</th>
-        <th>Interm. reps</th>
         <th>Trab. 1 kg</th>
         <th>Trab. 1 reps</th>
         <th>Trab. 2 kg</th>
@@ -926,7 +955,7 @@ function buildDailyReportWorkbookData(reportTitle, reportDate, sessions) {
   const totalVolume = sessions.reduce((sum, session) => sum + calculateRecordVolume(session), 0);
   const totalSets = sessions.reduce((sum, session) => {
     return sum + session.exercises.flatMap((exercise) => exercise.sets).filter(
-      (set) => set.weight > 0 || set.reps > 0
+      (set) => set.key.startsWith("work") && (set.weight > 0 || set.reps > 0)
     ).length;
   }, 0);
 
@@ -958,10 +987,6 @@ function buildDailyReportWorkbookData(reportTitle, reportDate, sessions) {
       "Treino",
       "Sensação",
       "Exercício",
-      "Leve kg",
-      "Leve reps",
-      "Interm. kg",
-      "Interm. reps",
       "Trab. 1 kg",
       "Trab. 1 reps",
       "Trab. 2 kg",
@@ -973,8 +998,6 @@ function buildDailyReportWorkbookData(reportTitle, reportDate, sessions) {
 
   sessions.forEach((session) => {
     session.exercises.forEach((exercise) => {
-      const warmup = findSet(exercise, "warmup");
-      const feeder = findSet(exercise, "feeder");
       const work1 = findSet(exercise, "work1");
       const work2 = findSet(exercise, "work2");
       const exerciseVolume = exercise.sets
@@ -986,10 +1009,6 @@ function buildDailyReportWorkbookData(reportTitle, reportDate, sessions) {
         session.workoutName,
         session.feeling,
         exercise.name,
-        emptyIfZero(warmup.weight),
-        emptyIfZero(warmup.reps),
-        emptyIfZero(feeder.weight),
-        emptyIfZero(feeder.reps),
         emptyIfZero(work1.weight),
         emptyIfZero(work1.reps),
         emptyIfZero(work2.weight),
