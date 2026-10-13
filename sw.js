@@ -1,9 +1,9 @@
-const CACHE_NAME = "treino-upper-lower-v24";
+const CACHE_NAME = "treino-upper-lower-v25";
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css",
-  "./app.js",
+  "./styles.css?v=25",
+  "./app.js?v=25",
   "./manifest.webmanifest",
   "./icon.svg",
 ];
